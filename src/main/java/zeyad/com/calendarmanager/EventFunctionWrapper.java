@@ -4,11 +4,16 @@ import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.Context;
 import android.database.Cursor;
+import android.database.DatabaseUtils;
 import android.net.Uri;
+import android.provider.CalendarContract;
 import android.provider.CalendarContract.Events;
 import android.util.Log;
 
 import java.util.ArrayList;
+
+import zeyad.com.calendarmanager.enums.Availability;
+import zeyad.com.calendarmanager.models.EventModel;
 
 /**
  * @author Zeyad Assem
@@ -47,47 +52,77 @@ public class EventFunctionWrapper {
             Cursor cur = getEventsCursor(selection,selectionArgs);
             // Use the cursor to step through the returned records
             while (cur.moveToNext()) {
-                long eventID = cur.getLong(CalendarConstants.PROJECTION_EVENT_ID_INDEX);
+                long eventID = cur.getLong(CalendarConstants.PROJECTION_ID_INDEX);
                 eventsID.add(eventID);
             }
         }
         return eventsID;
     }
 
-    /**
-     * This method logs all the events in a certain calendar.
-     * @param calendarID The calendar id that the event is related to.
-     */
-    public void logAllEvents(int calendarID){
+    public ArrayList<EventModel> getEventsByDate(long startDate, long endDate){
+        ArrayList<EventModel> events = new ArrayList<>();
+
+//        ArrayList<Long> eventsID = new ArrayList<Long>() ;
         if(!CalendarPermissionWrapper.checkCalendarPermission(context)){
             CalendarPermissionWrapper.requestCalendarPermission(context);
         }
 
         if(CalendarPermissionWrapper.checkCalendarPermission(context)){
-            String selection = "( ("+ Events.CALENDAR_ID + " = ?) )";
-            String[] selectionArgs = new String[]{ ""+calendarID};
-            Cursor cur = getEventsCursor(selection,selectionArgs);
-
+            Cursor cur = null;
+            EventQuery eventQuery = new EventQuery.EventQueryBuilder().withStartDateGreaterThan(startDate).withEndDateLessThan(endDate).build();
+            cur = getEventCursor(eventQuery);
             // Use the cursor to step through the returned records
-            while (cur.moveToNext()) {
-                long eventID = 0;
-                String eventTITLE = null;
-                long eventStartDate = 0;
-                long eventEndDate = 0;
+            events = getEventsFromCursor(cur);
+        }
+        return events;
+    }
 
-                // Get the field values
-                eventID = cur.getLong(CalendarConstants.PROJECTION_EVENT_ID_INDEX);
-                eventTITLE = cur.getString(CalendarConstants.PROJECTION_EVENT_TITLE_INDEX);
-                eventStartDate = cur.getLong(CalendarConstants.PROJECTION_EVENT_START_DATE_INDEX);
-                eventEndDate = cur.getLong(CalendarConstants.PROJECTION_EVENT_END_DATE_INDEX);
 
-                // Do something with the values...
-                Log.i("Event ID",Long.toString(eventID));
-                Log.i("eventTITLE",eventTITLE);
-                Log.i("eventStartDate",Long.toString(eventStartDate));
-                Log.i("eventEndDate",Long.toString(eventEndDate));
+    public ArrayList<EventModel> getEvents(){
+        ArrayList<EventModel> events = new ArrayList<>();
+        if(!CalendarPermissionWrapper.checkCalendarPermission(context)){
+            CalendarPermissionWrapper.requestCalendarPermission(context);
+        }
 
+        if(CalendarPermissionWrapper.checkCalendarPermission(context)){
+            Cursor cur = null;
+            EventQuery eventQuery =new  EventQuery.EventQueryBuilder().build();
+            cur = context.getContentResolver().query(eventQuery.getEventUri(), eventQuery.getEventProjection(), eventQuery.getEventSelection(), eventQuery.getEventSelectionArguments(),eventQuery.getEventSortOrder());
+             events = getEventsFromCursor(cur);
+        }
+        return events;
+    }
+
+    public ArrayList<EventModel> getEvents(EventQuery eventQuery){
+        ArrayList<EventModel> events = new ArrayList<>();
+        if(!CalendarPermissionWrapper.checkCalendarPermission(context)){
+            CalendarPermissionWrapper.requestCalendarPermission(context);
+        }
+
+        if(CalendarPermissionWrapper.checkCalendarPermission(context)){
+            Cursor cur = context.getContentResolver().query(eventQuery.getEventUri(), eventQuery.getEventProjection(), eventQuery.getEventSelection(), eventQuery.getEventSelectionArguments(),eventQuery.getEventSortOrder());
+            events = getEventsFromCursor(cur);
+        }
+        return events;
+    }
+
+
+
+    /**
+     * This method logs all the events in a certain calendar.
+     * @param calendarID The calendar id that the event is related to.
+     */
+    public void logAllEvents(){
+        if(!CalendarPermissionWrapper.checkCalendarPermission(context)){
+            CalendarPermissionWrapper.requestCalendarPermission(context);
+        }
+
+        if(CalendarPermissionWrapper.checkCalendarPermission(context)){
+            ArrayList<EventModel> events  = getEvents();
+            for(int i=0; i<events.size();i++){
+                Log.i("event" , events.get(i).toString());
             }
+
         }
     }
 
@@ -260,6 +295,79 @@ public class EventFunctionWrapper {
                 selection, selectionArguments, null);
         return cur;
     }
+
+    public ArrayList<EventModel> getEventsFromCursor(Cursor eventCursor){
+        ArrayList<EventModel> events = new ArrayList<>();
+
+        if(eventCursor != null && eventCursor.getCount()>0){
+            while (eventCursor.moveToNext()){
+                String stringCursor = DatabaseUtils.dumpCurrentRowToString(eventCursor);
+                EventModel eventModel = new EventModel();
+                eventModel.setRRule(eventCursor.getString(CalendarConstants.PROJECTION_RRULE_INDEX));
+                eventModel.setEventTimeZone(eventCursor.getString(CalendarConstants.PROJECTION_EVENT_TIMEZONE_INDEX));
+                eventModel.setHasAttendeeData(eventCursor.getInt(CalendarConstants.PROJECTION_HAS_ATTENDEE_DATA_INDEX)>0);
+                eventModel.setSyncId(eventCursor.getString(CalendarConstants.PROJECTION_SYNC_ID_INDEX));
+                eventModel.setCustomAppPackage(eventCursor.getString(CalendarConstants.PROJECTION_CUSTOM_APP_PACKAGE_INDEX));
+                eventModel.setOriginalInstanceTime(eventCursor.getLong(CalendarConstants.PROJECTION_INSTANCE_TIME_INDEX));
+                eventModel.setAllowedReminders(eventCursor.getString(CalendarConstants.PROJECTION_ALLOWED_REMINDERS_INDEX));
+                eventModel.setUid2445(eventCursor.getString(CalendarConstants.PROJECTION_UID_2445_INDEX));
+                eventModel.setCalendarTimezone(eventCursor.getString(CalendarConstants.PROJECTION_CALENDAR_TIME_ZONE_INDEX));
+                eventModel.setDirty(eventCursor.getLong(CalendarConstants.PROJECTION_DIRTY_INDEX));
+                eventModel.setOriginalAllDay(eventCursor.getInt(CalendarConstants.PROJECTION_ORIGINAL_ALL_DAY_INDEX)>0);
+                eventModel.setExrule(eventCursor.getString(CalendarConstants.PROJECTION_EXRULE_INDEX));
+                eventModel.setCalendarColor(eventCursor.getInt(CalendarConstants.PROJECTION_CALENDAR_COLOR_INDEX));
+                eventModel.setLastDate(eventCursor.getLong(CalendarConstants.PROJECTION_LAST_DATE_INDEX));
+                eventModel.setCanOrganizerRespond(eventCursor.getInt(CalendarConstants.PROJECTION_CAN_ORGANIZER_RESPOND_INDEX)>0);
+                eventModel.setGuestsCanSeeGuests(eventCursor.getInt(CalendarConstants.PROJECTION_GUESTS_CAN_SEE_GUESTS_INDEX)>0);
+                eventModel.setrDate(eventCursor.getString(CalendarConstants.PROJECTION_RDATE_INDEX));
+                eventModel.setAccountType(eventCursor.getString(CalendarConstants.PROJECTION_ACCOUNT_TYPE_INDEX));
+                eventModel.setEventEndTimezone(eventCursor.getString(CalendarConstants.PROJECTION_EVENT_END_TIMEZONE_INDEX));
+                eventModel.setSelfAttendeeStatus(eventCursor.getInt(CalendarConstants.PROJECTION_SELF_ATTENDEE_STATUS_INDEX));
+                eventModel.setExDate(eventCursor.getString(CalendarConstants.PROJECTION_EXDATE_INDEX));
+                eventModel.setHasExtendedProperties(eventCursor.getInt(CalendarConstants.PROJECTION_HAS_EXTENDED_PROPERTIES_INDEX)>0);
+                eventModel.setEventColorKey(eventCursor.getString(CalendarConstants.PROJECTION_EVENT_COLOR_KEY_INDEX));
+                eventModel.setOrganizer(eventCursor.getString(CalendarConstants.PROJECTION_ORGANIZER_INDEX));
+                eventModel.setCalendarColorIndex(eventCursor.getString(CalendarConstants.PROJECTION_CALENDAR_COLOR_KEY_INDEX));
+                eventModel.setEventColor(eventCursor.getInt(CalendarConstants.PROJECTION_EVENT_COLOR_INDEX));
+                eventModel.setAvailability(eventCursor.getInt(CalendarConstants.PROJECTION_AVAILABILITY_INDEX));
+                eventModel.setAvailability(eventCursor.getInt(CalendarConstants.PROJECTION_AVAILABILITY_INDEX));
+                eventModel.setStartDate(eventCursor.getLong(CalendarConstants.PROJECTION_DTSTART_INDEX));
+                eventModel.setOwnerAccount(eventCursor.getString(CalendarConstants.PROJECTION_EVENT_OWNER_ACCOUNT_INDEX));
+                eventModel.setLastSynced(eventCursor.getInt(CalendarConstants.PROJECTION_LAST_SYNCED_INDEX)>0);
+                eventModel.setDuration(eventCursor.getString(CalendarConstants.PROJECTION_DURATION_INDEX));
+                eventModel.setAccessLevel(eventCursor.getInt(CalendarConstants.PROJECTION_ACCESS_LEVEL_INDEX));
+                eventModel.setMaxReminders(eventCursor.getInt(CalendarConstants.PROJECTION_EVENT_MAX_REMINDERS_INDEX));
+                eventModel.setDisplayColor(eventCursor.getInt(CalendarConstants.PROJECTION_DISPLAY_COLOR_INDEX));
+                eventModel.setAllDay(eventCursor.getInt(CalendarConstants.PROJECTION_ALL_DAY_INDEX)>0);
+                eventModel.setEventStatus(eventCursor.getInt(CalendarConstants.PROJECTION_STATUS_INDEX));
+                eventModel.setEndDate(eventCursor.getLong(CalendarConstants.PROJECTION_DTEND_INDEX));
+                eventModel.setOriginalId(eventCursor.getString(CalendarConstants.PROJECTION_ORIGINAL_ID_INDEX));
+                eventModel.setId(eventCursor.getInt(CalendarConstants.PROJECTION_ID_INDEX));
+                eventModel.setGuestsCanModify(eventCursor.getInt(CalendarConstants.PROJECTION_GUESTS_CAN_MODIFY_INDEX)>0);
+                eventModel.setCustomAppUri(eventCursor.getString(CalendarConstants.PROJECTION_CUSTOM_APP_URI_INDEX));
+                eventModel.setCalendarAccessLevel(eventCursor.getInt(CalendarConstants.PROJECTION_CALENDAR_ACCESS_LEVEL_INDEX));
+                eventModel.setCalendarDisplayName(eventCursor.getString(CalendarConstants.PROJECTION_CALENDAR_DISPLAY_NAME_INDEX));
+                eventModel.setGuestsCanInviteOthers(eventCursor.getInt(CalendarConstants.PROJECTION_GUESTS_CAN_INVITE_OTHERS_INDEX)>0);
+                eventModel.setOriginalSyncId(eventCursor.getString(CalendarConstants.PROJECTION_ORIGINAL_SYNC_ID_INDEX));
+                eventModel.setCanModifyTimeZone(eventCursor.getInt(CalendarConstants.PROJECTION_CAN_MODIFY_TIME_ZONE_INDEX)>0);
+                eventModel.setVisible(eventCursor.getInt(CalendarConstants.PROJECTION_VISIBLE_INDEX)>0);
+                eventModel.setAllowedAttendeeTypes(eventCursor.getString(CalendarConstants.PROJECTION_ALLOWED_ATTENDEE_TYPES_INDEX));
+                eventModel.setAllowedAvailability(eventCursor.getString(CalendarConstants.PROJECTION_ALLOWED_AVAILABILITY_INDEX));
+                eventModel.setDescription(eventCursor.getString(CalendarConstants.PROJECTION_DESCRIPTION_INDEX));
+                eventModel.setTitle(eventCursor.getString(CalendarConstants.PROJECTION_TITLE_INDEX));
+                eventModel.setCalendarId(eventCursor.getInt(CalendarConstants.PROJECTION_CALENDAR_ID_INDEX));
+                eventModel.setDeleted(eventCursor.getInt(CalendarConstants.PROJECTION_DELETED_INDEX)>0);
+                eventModel.setEventLocation(eventCursor.getString(CalendarConstants.PROJECTION_EVENT_LOCATION_INDEX));
+                eventModel.setAccountName(eventCursor.getString(CalendarConstants.PROJECTION_ACCOUNT_NAME_INDEX));
+                eventModel.setHasAlarm(eventCursor.getInt(CalendarConstants.PROJECTION_HAS_ALARM_INDEX)>0);
+                eventModel.setIsOrganizer(eventCursor.getString(CalendarConstants.PROJECTION_IS_ORGANIZER_INDEX));
+                events.add(eventModel);
+            }
+
+        }
+        return events;
+    }
+
 /**
  * This is helper method that query your content provider.
  * Enables you to specify also what columns you need in your cursor.
@@ -271,6 +379,18 @@ public class EventFunctionWrapper {
     private Cursor getEventsCursor(String selection, String []selectionArguments, String [] projection){
         Cursor cur = contentResolver.query(CalendarConstants.EVENT_URI, projection,
                 selection, selectionArguments, null);
+        return cur;
+    }
+
+    private Cursor getEventsCursor(Uri uri, String selection, String []selectionArguments){
+        Cursor cur = contentResolver.query(uri, CalendarConstants.EVENT_PROJECTION,
+                selection, selectionArguments, null);
+        return cur;
+    }
+
+    private Cursor getEventCursor(EventQuery eventQuery){
+        Cursor cur = contentResolver.query(eventQuery.getEventUri(), eventQuery.getEventProjection(),
+                eventQuery.getEventSelection(), eventQuery.getEventSelectionArguments(), eventQuery.getEventSortOrder());
         return cur;
     }
 }
